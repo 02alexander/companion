@@ -1,0 +1,16 @@
+[target.'cfg(all(target_arch = "arm", target_os = "none"))']
+
+# When using a probe.
+runner = "probe-rs run --chip RP235x"
+
+# When uploading directly through usb.
+# runner = "elf2uf2-rs -d"
+
+# Maybe sometimes useful
+# runner = "picotool load -u -v -x -t elf"
+
+[build]
+target = "thumbv8m.main-none-eabihf"
+
+[env]
+DEFMT_LOG="cyw43=error,pico2w_template=trace"

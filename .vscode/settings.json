@@ -1,0 +1,5 @@
+{
+    "rust-analyzer.check.allTargets": false,
+    "nixEnvSelector.nixFile": "${workspaceFolder}/flake.nix",
+    "rust-analyzer.cargo.allTargets": false
+}
