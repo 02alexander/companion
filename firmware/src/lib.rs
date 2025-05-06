@@ -5,7 +5,6 @@ use embassy_rp::peripherals::PIO0;
 use embassy_rp::pio;
 use embassy_rp::bind_interrupts;
 
-
 pub mod assign {
     use assign_resources::assign_resources;
     use embassy_rp::peripherals;

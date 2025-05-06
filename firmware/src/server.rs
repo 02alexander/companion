@@ -1,15 +1,12 @@
-use assign_resources::assign_resources;
 use embassy_rp::peripherals::{DMA_CH0, PIO0};
-use core::sync::atomic::{self, AtomicU32};
 use cyw43::{Control, JoinOptions};
 use cyw43_pio::{DEFAULT_CLOCK_DIVIDER, PioSpi};
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_net::StackResources;
 use embassy_net::tcp::TcpSocket;
-use embassy_rp::{bind_interrupts, pwm, Peripherals};
 use embassy_rp::clocks::RoscRng;
-use embassy_rp::gpio::{Level, Output, Pull};
+use embassy_rp::gpio::{Level, Output};
 use embassy_rp::interrupt::typelevel::Interrupt;
 use embassy_rp::pio::Pio;
 use embassy_time::{Duration, Timer};
@@ -30,7 +27,6 @@ async fn cyw43_task(
 async fn net_task(mut runner: embassy_net::Runner<'static, cyw43::NetDriver<'static>>) -> ! {
     runner.run().await
 }
-
 
 pub async fn start_network(net: Netresources, spawner: &Spawner) -> (embassy_net::Stack<'static>, Control<'static>) {
 
@@ -118,7 +114,7 @@ pub async fn transmitter(stack: embassy_net::Stack<'static>, mut control: Contro
 
     let mut rx_buffer = [0; 4096];
     let mut tx_buffer = [0; 4096];
-    let mut buf = [0; 4096];
+    let buf = [0; 4096];
     
     loop {
         let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);

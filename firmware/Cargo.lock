@@ -146,29 +146,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "companion"
-version = "0.1.0"
-dependencies = [
- "assign-resources",
- "cortex-m-rt",
- "cyw43",
- "cyw43-pio",
- "defmt",
- "defmt-rtt",
- "embassy-executor",
- "embassy-futures",
- "embassy-net",
- "embassy-rp",
- "embassy-time",
- "embedded-io-async",
- "heapless",
- "libm",
- "panic-probe",
- "rand",
- "static_cell",
-]
-
-[[package]]
 name = "cortex-m"
 version = "0.7.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -665,6 +642,29 @@ name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
+
+[[package]]
+name = "firmware"
+version = "0.1.0"
+dependencies = [
+ "assign-resources",
+ "cortex-m-rt",
+ "cyw43",
+ "cyw43-pio",
+ "defmt",
+ "defmt-rtt",
+ "embassy-executor",
+ "embassy-futures",
+ "embassy-net",
+ "embassy-rp",
+ "embassy-time",
+ "embedded-io-async",
+ "heapless",
+ "libm",
+ "panic-probe",
+ "rand",
+ "static_cell",
+]
 
 [[package]]
 name = "fixed"

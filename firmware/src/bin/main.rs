@@ -2,25 +2,15 @@
 #![no_main]
 
 use core::sync::atomic::{self, AtomicU32};
-use cyw43::{Control, JoinOptions};
-use cyw43_pio::{DEFAULT_CLOCK_DIVIDER, PioSpi};
 use defmt::*;
 use embassy_executor::Spawner;
-use embassy_net::StackResources;
-use embassy_net::tcp::TcpSocket;
-use embassy_rp::{bind_interrupts, pwm, Peripherals};
-use embassy_rp::clocks::RoscRng;
-use embassy_rp::gpio::{AnyPin, Input, Level, Output, Pull};
-use embassy_rp::interrupt::typelevel::Interrupt;
-use embassy_rp::peripherals::{DMA_CH0, PIO0};
-use embassy_rp::pio::{self, Pio};
-use embassy_rp::pwm::{Config, Pwm};
-use embassy_time::{Duration, Timer};
-use embedded_io_async::Write;
-use companion::server::{start_network, transmitter};
-use companion::split_resources;
+use embassy_rp::pwm;
+use embassy_rp::gpio::{Input, Level, Output, Pull};
+use embassy_rp::pwm::Pwm;
+use embassy_time::Timer;
+use firmware::server::{start_network, transmitter};
+use firmware::split_resources;
 use {defmt_rtt as _, panic_probe as _};
-
 
 // Program metadata for `picotool info`.
 // This isn't needed, but it's recommended to have these minimal entries.
@@ -33,7 +23,6 @@ pub static PICOTOOL_ENTRIES: [embassy_rp::binary_info::EntryAddr; 4] = [
     embassy_rp::binary_info::rp_program_build_attribute!(),
 ];
 
-
 static COUNTER: AtomicU32 = AtomicU32::new(0);
 
 #[embassy_executor::task]
@@ -42,7 +31,6 @@ async fn count_ticks(mut pin1: Input<'static>, pin2: Input<'static>) -> ! {
         pin1.wait_for_high().await;
         pin1.wait_for_low().await;
         COUNTER.fetch_add(1, atomic::Ordering::Relaxed);
-        // Timer::after_secs(1).await;
     }
 }
 
@@ -52,7 +40,7 @@ async fn main(spawner: Spawner) {
 
     unwrap!(spawner.spawn(count_ticks(Input::new(p.PIN_11, Pull::Down), Input::new(p.PIN_12, Pull::Down))));
     
-    use companion::assign::*;
+    use firmware::assign::*;
     let r = split_resources!(p);
     let (stack, control) = start_network(r.net, &spawner).await;
 
