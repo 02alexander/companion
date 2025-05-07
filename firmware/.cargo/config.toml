@@ -13,4 +13,4 @@ runner = "probe-rs run --chip RP235x"
 target = "thumbv8m.main-none-eabihf"
 
 [env]
-DEFMT_LOG="cyw43=error,pico2w_template=trace"
+DEFMT_LOG="cyw43=error,firmware=trace"

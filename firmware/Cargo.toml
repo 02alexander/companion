@@ -7,14 +7,15 @@ edition = "2024"
 [dependencies]
 # embassy-embedded-hal = { version = "0.3.0", path = "../../embassy-embedded-hal", features = ["defmt"] }
 # embassy-sync = { version = "0.6.2", features = ["defmt"] }
+# embassy-usb = { version = "0.4.0", features = ["defmt"] }
+# embassy-net-wiznet = { version = "0.2.0", path = "../../embassy-net-wiznet", features = ["defmt"] }
+# embassy-usb-logger = { version = "0.4.0", path = "../../embassy-usb-logger" }
+
+embassy-rp = { version = "0.3.0", features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl", "rp235xa", "binary-info"] }
 embassy-executor = { version = "0.7.0", features = ["task-arena-size-98304", "arch-cortex-m", "executor-thread", "executor-interrupt", "defmt"] }
 embassy-time = { version = "0.4.0", features = ["defmt", "defmt-timestamp-uptime"] }
-embassy-rp = { version = "0.3.0", features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl", "rp235xa", "binary-info"] }
-# embassy-usb = { version = "0.4.0", features = ["defmt"] }
 embassy-net = { version = "0.7.0", features = ["defmt", "tcp", "udp", "raw", "dhcpv4", "medium-ethernet", "dns"] }
-# embassy-net-wiznet = { version = "0.2.0", path = "../../embassy-net-wiznet", features = ["defmt"] }
 embassy-futures = { version = "0.1.0" }
-# embassy-usb-logger = { version = "0.4.0", path = "../../embassy-usb-logger" }
 cyw43 = { version = "0.3.0", features = ["defmt", "firmware-logs"] }
 cyw43-pio = { version = "0.3.0", features = ["defmt"] }
 
@@ -61,7 +62,7 @@ embassy-time = {git = "https://github.com/embassy-rs/embassy", rev="17301c00e986
 embassy-rp = {git = "https://github.com/embassy-rs/embassy", rev="17301c00e986c5b8536435ea31ebf5aaf13aed17"}
 embassy-executor = {git = "https://github.com/embassy-rs/embassy", rev="17301c00e986c5b8536435ea31ebf5aaf13aed17"}
 embassy-sync = {git = "https://github.com/embassy-rs/embassy", rev="17301c00e986c5b8536435ea31ebf5aaf13aed17"}
-embassy-usb = {git = "https://github.com/embassy-rs/embassy", rev="17301c00e986c5b8536435ea31ebf5aaf13aed17"}
+# embassy-usb = {git = "https://github.com/embassy-rs/embassy", rev="17301c00e986c5b8536435ea31ebf5aaf13aed17"}
 embassy-futures = {git = "https://github.com/embassy-rs/embassy", rev="17301c00e986c5b8536435ea31ebf5aaf13aed17"}
 embassy-net = {git = "https://github.com/embassy-rs/embassy", rev="17301c00e986c5b8536435ea31ebf5aaf13aed17"}
 

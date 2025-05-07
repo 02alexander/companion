@@ -1,6 +1,6 @@
 use embassy_rp::peripherals::{DMA_CH0, PIO0};
 use cyw43::{Control, JoinOptions};
-use cyw43_pio::{DEFAULT_CLOCK_DIVIDER, PioSpi};
+use cyw43_pio::PioSpi;
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_net::StackResources;
@@ -36,7 +36,7 @@ pub async fn start_network(net: Netresources, spawner: &Spawner) -> (embassy_net
     let spi = PioSpi::new(
         &mut pio.common,
         pio.sm0,
-        DEFAULT_CLOCK_DIVIDER,
+        (16 as u16).into(),
         pio.irq0,
         cs,
         net.dio,
