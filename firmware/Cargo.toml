@@ -5,12 +5,6 @@ edition = "2024"
 
 
 [dependencies]
-# embassy-embedded-hal = { version = "0.3.0", path = "../../embassy-embedded-hal", features = ["defmt"] }
-# embassy-sync = { version = "0.6.2", features = ["defmt"] }
-# embassy-usb = { version = "0.4.0", features = ["defmt"] }
-# embassy-net-wiznet = { version = "0.2.0", path = "../../embassy-net-wiznet", features = ["defmt"] }
-# embassy-usb-logger = { version = "0.4.0", path = "../../embassy-usb-logger" }
-
 embassy-rp = { version = "0.3.0", features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl", "rp235xa", "binary-info"] }
 embassy-executor = { version = "0.7.0", features = ["task-arena-size-98304", "arch-cortex-m", "executor-thread", "executor-interrupt", "defmt"] }
 embassy-time = { version = "0.4.0", features = ["defmt", "defmt-timestamp-uptime"] }
@@ -22,47 +16,27 @@ cyw43-pio = { version = "0.3.0", features = ["defmt"] }
 
 defmt = "0.3"
 defmt-rtt = "0.4"
-# fixed = "1.23.1"
-# fixed-macro = "1.2"
-
-# serde = { version = "1.0.203", default-features = false, features = ["derive"] }
-# serde-json-core = "0.5.1"
 
 # # for assign resources example
 assign-resources = { git = "https://github.com/adamgreig/assign-resources", rev = "94ad10e2729afdf0fd5a77cd12e68409a982f58a" }
 
-# cortex-m = { version = "0.7.6" }
-# cortex-m = { version = "0.7.6", features = ["inline-asm"] }
 cortex-m-rt = "0.7.0"
-# critical-section = "1.1"
 panic-probe = { version = "0.3", features = ["print-defmt"] }
-# display-interface-spi = "0.5.0"
-# embedded-graphics = "0.8.1"
-# mipidsi = "0.8.0"
-# display-interface = "0.5.0"
-# byte-slice-cast = { version = "1.2.0", default-features = false }
-# smart-leds = "0.3.0"
 heapless = "0.8"
-# usbd-hid = "0.8.1"
 
-# embedded-hal-1 = { package = "embedded-hal", version = "1.0" }
-# embedded-hal-async = "1.0"
-# embedded-hal-bus = { version = "0.1", features = ["async"] }
 embedded-io-async = { version = "0.6.1", features = ["defmt-03"] }
-# embedded-storage = { version = "0.3" }
 static_cell = "2.1"
 libm = "0.2.11"
-# portable-atomic = { version = "1.5", features = ["critical-section"] }
-# log = "0.4"
 rand = { version = "0.8.5", default-features = false }
-# embedded-sdmmc = "0.7.0"
+serde = { version = "1.0.219", features = ["derive"], default-features = false }
+common = {path = "../common"}
+bincode = { version = "2.0.1", default-features = false, features = ["serde"] }
 
 [patch.crates-io]
 embassy-time = {git = "https://github.com/embassy-rs/embassy", rev="17301c00e986c5b8536435ea31ebf5aaf13aed17"}
 embassy-rp = {git = "https://github.com/embassy-rs/embassy", rev="17301c00e986c5b8536435ea31ebf5aaf13aed17"}
 embassy-executor = {git = "https://github.com/embassy-rs/embassy", rev="17301c00e986c5b8536435ea31ebf5aaf13aed17"}
 embassy-sync = {git = "https://github.com/embassy-rs/embassy", rev="17301c00e986c5b8536435ea31ebf5aaf13aed17"}
-# embassy-usb = {git = "https://github.com/embassy-rs/embassy", rev="17301c00e986c5b8536435ea31ebf5aaf13aed17"}
 embassy-futures = {git = "https://github.com/embassy-rs/embassy", rev="17301c00e986c5b8536435ea31ebf5aaf13aed17"}
 embassy-net = {git = "https://github.com/embassy-rs/embassy", rev="17301c00e986c5b8536435ea31ebf5aaf13aed17"}
 

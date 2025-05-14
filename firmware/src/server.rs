@@ -10,11 +10,20 @@ use embassy_rp::gpio::{Level, Output};
 use embassy_rp::interrupt::typelevel::Interrupt;
 use embassy_rp::pio::Pio;
 use embassy_time::{Duration, Timer};
+use embedded_io_async::Write;
+use heapless::mpmc;
 use rand::RngCore;
+use serde::Serialize;
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 use crate::Irqs;
 use crate::assign::*;
+
+
+#[derive(Serialize)]
+pub struct LogMessage {
+    pub pos: u32,
+}
 
 #[embassy_executor::task]
 async fn cyw43_task(
@@ -79,9 +88,8 @@ pub async fn start_network(net: Netresources, spawner: &Spawner) -> (embassy_net
 
 }
 
-
 #[embassy_executor::task]
-pub async fn transmitter(stack: embassy_net::Stack<'static>, mut control: Control<'static>) {
+pub async fn transmitter(stack: embassy_net::Stack<'static>, mut control: Control<'static>, channel: &'static mpmc::Q4<LogMessage>) {
     loop {
         match control
             .join(
@@ -129,29 +137,32 @@ pub async fn transmitter(stack: embassy_net::Stack<'static>, mut control: Contro
 
         info!("Received connection from {:?}", socket.remote_endpoint());
         control.gpio_set(0, true).await;
-        Timer::after_millis(100).await;
 
-        // loop {
-        //     let n = match socket.read(&mut buf).await {
-        //         Ok(0) => {
-        //             warn!("read EOF");
-        //             break;
-        //         }
-        //         Ok(n) => n,
-        //         Err(e) => {
-        //             warn!("read error: {:?}", e);
-        //             break;
-        //         }
-        //     };
+        loop {
+            if let Some(msg) = channel.dequeue() {
+                
+                let mut formatted = [0 as u8; 16];
 
+                let Ok(n) = bincode::serde::encode_into_slice(msg, &mut formatted[2..], bincode::config::standard()) else {
+                    warn!("Failed to encode msg");
+                    continue;
+                };
+                let size_bytes = (n as u16).to_be_bytes();
+                formatted[0] = size_bytes[0];
+                formatted[1] = size_bytes[1];
+                
+                info!("sending {:?}", formatted[..n+2]);
+                match socket.write_all(&formatted[..n+2]).await {
+                    Ok(()) => {},
+                    Err(e) => {
+                        warn!("write error: {:?}", e);
+                        break;
+                    }
+                }
 
-        //     match socket.write_all(&buf[..n]).await {
-        //         Ok(()) => {}
-        //         Err(e) => {
-        //             warn!("write error: {:?}", e);
-        //             break;
-        //         }
-        //     };
-        // }
+            } else {
+                Timer::after_millis(0).await;
+            }
+        }
     }
 }

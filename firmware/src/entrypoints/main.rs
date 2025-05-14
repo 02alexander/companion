@@ -1,6 +1,3 @@
-#![no_std]
-#![no_main]
-
 use core::sync::atomic::{self, AtomicU32};
 use defmt::*;
 use embassy_executor::Spawner;
@@ -8,7 +5,8 @@ use embassy_rp::pwm;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
 use embassy_rp::pwm::Pwm;
 use embassy_time::Timer;
-use crate::server::{start_network, transmitter};
+use heapless::mpmc::Q4;
+use crate::server::{start_network, transmitter, LogMessage};
 use crate::*;
 
 use {defmt_rtt as _, panic_probe as _};
@@ -35,17 +33,30 @@ async fn count_ticks(mut pin1: Input<'static>, pin2: Input<'static>) -> ! {
     }
 }
 
+#[embassy_executor::task]
+async fn logger() {
+    loop {
+        let _ = MSG_QUEUE.enqueue(LogMessage {pos: COUNTER.load(atomic::Ordering::Relaxed)});
+        Timer::after_millis(10).await;
+    }
+}
+
+static MSG_QUEUE: Q4<server::LogMessage> = Q4::new();
+
+
 pub async fn entrypoint(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
-    unwrap!(spawner.spawn(count_ticks(Input::new(p.PIN_11, Pull::Down), Input::new(p.PIN_12, Pull::Down))));
-    
+    unwrap!(spawner.spawn(count_ticks(Input::new(p.PIN_12, Pull::Down), Input::new(p.PIN_13, Pull::Down))));
+    unwrap!(spawner.spawn(logger()));
+
     use crate::assign::*;
     let r = split_resources!(p);
     let (stack, control) = start_network(r.net, &spawner).await;
     info!("network started!");
 
-    unwrap!(spawner.spawn(transmitter(stack, control)));
+
+    unwrap!(spawner.spawn(transmitter(stack, control, &MSG_QUEUE)));
 
     let mut pwm_config = pwm::Config::default();
     pwm_config.divider = 150.into();
@@ -58,11 +69,14 @@ pub async fn entrypoint(spawner: Spawner) {
         Timer::after_millis(1000).await;
         pwm_config.compare_b = 180;
         motor_pwm.set_config(&pwm_config);
-        info!("set to {}/{}", pwm_config.compare_b, pwm_config.top);
+        // info!("set to {}/{}", pwm_config.compare_b, pwm_config.top);
+
         Timer::after_millis(1000).await;
         pwm_config.compare_b = 200;
         motor_pwm.set_config(&pwm_config);
-        info!("set to {}/{}", pwm_config.compare_b, pwm_config.top);
+        // info!("set to {}/{}", pwm_config.compare_b, pwm_config.top);
+
+
         // info!("ticks: {}", COUNTER.load(atomic::Ordering::Relaxed));
     }
 }
