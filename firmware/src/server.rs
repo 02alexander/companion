@@ -1,3 +1,4 @@
+use common::LogMessage;
 use embassy_rp::peripherals::{DMA_CH0, PIO0};
 use cyw43::{Control, JoinOptions};
 use cyw43_pio::PioSpi;
@@ -13,17 +14,10 @@ use embassy_time::{Duration, Timer};
 use embedded_io_async::Write;
 use heapless::mpmc;
 use rand::RngCore;
-use serde::Serialize;
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 use crate::Irqs;
 use crate::assign::*;
-
-
-#[derive(Serialize)]
-pub struct LogMessage {
-    pub pos: u32,
-}
 
 #[embassy_executor::task]
 async fn cyw43_task(
@@ -150,8 +144,10 @@ pub async fn transmitter(stack: embassy_net::Stack<'static>, mut control: Contro
                 let size_bytes = (n as u16).to_be_bytes();
                 formatted[0] = size_bytes[0];
                 formatted[1] = size_bytes[1];
+
                 
-                info!("sending {:?}", formatted[..n+2]);
+                
+                // info!("sending {:?}", formatted[..n+2]);
                 match socket.write_all(&formatted[..n+2]).await {
                     Ok(()) => {},
                     Err(e) => {

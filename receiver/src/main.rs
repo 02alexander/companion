@@ -1,5 +1,5 @@
 use std::io::Read;
-use common::Message;
+use common::LogMessage;
 
 fn connect() -> anyhow::Result<()> {
 
@@ -16,9 +16,9 @@ fn connect() -> anyhow::Result<()> {
         let n = u16::from_be_bytes(size_bytes);
         connection.read(&mut msg_buffer[..n as usize])?;
         
-        let (msg, _) = bincode::serde::decode_from_slice::<Message, _>(&msg_buffer[..n as usize], bincode::config::standard())?;
+        let (msg, _) = bincode::serde::decode_from_slice::<LogMessage, _>(&msg_buffer[..n as usize], bincode::config::standard())?;
         
-        println!("{:?}", msg.ticks);
+        println!("{} {}", msg.ticks, msg.pwm);
     }
 
     Ok(())
