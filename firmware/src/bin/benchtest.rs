@@ -1,8 +1,8 @@
 #![no_std]
 #![no_main]
 extern crate alloc;
-
 use embassy_executor::Spawner;
+
 
 use embedded_alloc::TlsfHeap as Heap;
 #[global_allocator]
@@ -17,5 +17,5 @@ async fn main(spawner: Spawner) {
         static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
         unsafe { HEAP.init(&raw mut HEAP_MEM as usize, HEAP_SIZE) }
     }
-    firmware::entrypoints::main::entrypoint(spawner).await;
+    firmware::entrypoints::benchtest::entrypoint(spawner).await;
 }

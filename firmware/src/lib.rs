@@ -1,5 +1,17 @@
 #![no_std]
 #![no_main]
+extern crate alloc;
+
+// Program metadata for `picotool info`.
+// This isn't needed, but it's recommended to have these minimal entries.
+#[unsafe(link_section = ".bi_entries")]
+#[used]
+pub static PICOTOOL_ENTRIES: [embassy_rp::binary_info::EntryAddr; 4] = [
+    embassy_rp::binary_info::rp_program_name!(c"Pico template"),
+    embassy_rp::binary_info::rp_program_description!(c"Pico 2W template"),
+    embassy_rp::binary_info::rp_cargo_version!(),
+    embassy_rp::binary_info::rp_program_build_attribute!(),
+];
 
 use embassy_rp::peripherals::PIO0;
 use embassy_rp::pio;
@@ -13,3 +25,5 @@ bind_interrupts!(struct Irqs {
 
 pub mod server;
 pub mod entrypoints;
+pub mod encoder;
+pub mod motor;

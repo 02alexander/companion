@@ -2,5 +2,5 @@
     "rust-analyzer.check.allTargets": false,
     "nixEnvSelector.nixFile": "${workspaceFolder}/flake.nix",
     "rust-analyzer.cargo.allTargets": false,
-    "rust-analyzer.linkedProjects": ["firmware/Cargo.toml", "receiver/Cargo.toml", "common/Cargo.toml"]
+    "rust-analyzer.linkedProjects": ["firmware/Cargo.toml", "receiver/Cargo.toml", "common/Cargo.toml", "analysis/Cargo.toml"]
 }

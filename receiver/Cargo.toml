@@ -8,3 +8,4 @@ anyhow = "1.0.98"
 futures = "0.3.31"
 common = {path = "../common"}
 bincode = { version = "2.0.1", features = ["serde"] }
+rerun = "0.23.2"

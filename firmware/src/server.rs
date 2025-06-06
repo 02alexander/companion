@@ -116,26 +116,26 @@ pub async fn transmitter(stack: embassy_net::Stack<'static>, mut control: Contro
 
     let mut rx_buffer = [0; 4096];
     let mut tx_buffer = [0; 4096];
-    let buf = [0; 4096];
+    let _buf = [0; 4096];
     
-    loop {
-        let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
-        socket.set_timeout(Some(Duration::from_secs(10)));
 
-        control.gpio_set(0, false).await;
-        info!("Listening on TCP:1234...");
+    let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
+    socket.set_timeout(Some(Duration::from_secs(5)));
+
+    loop {
+        // control.gpio_set(0, false).await;
+        info!("Listening on TCP at port 1234...");
         if let Err(e) = socket.accept(1234).await {
             warn!("accept error: {:?}", e);
             continue;
         }
 
         info!("Received connection from {:?}", socket.remote_endpoint());
-        control.gpio_set(0, true).await;
+        // control.gpio_set(0, true).await;
 
         loop {
-            if let Some(msg) = channel.dequeue() {
-                
-                let mut formatted = [0 as u8; 16];
+            if let Some(msg) = channel.dequeue() {                
+                let mut formatted = [0 as u8; 32];
 
                 let Ok(n) = bincode::serde::encode_into_slice(msg, &mut formatted[2..], bincode::config::standard()) else {
                     warn!("Failed to encode msg");
@@ -146,7 +146,6 @@ pub async fn transmitter(stack: embassy_net::Stack<'static>, mut control: Contro
                 formatted[1] = size_bytes[1];
 
                 
-                
                 // info!("sending {:?}", formatted[..n+2]);
                 match socket.write_all(&formatted[..n+2]).await {
                     Ok(()) => {},
@@ -155,8 +154,9 @@ pub async fn transmitter(stack: embassy_net::Stack<'static>, mut control: Contro
                         break;
                     }
                 }
-
+                Timer::after_millis(0).await;
             } else {
+                // info!("No message");
                 Timer::after_millis(0).await;
             }
         }

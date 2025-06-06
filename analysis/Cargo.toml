@@ -1,0 +1,9 @@
+[package]
+name = "analysis"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rerun = {version="0.23.3", default-features = false, features = ["sdk", "dataframe"]}
+common = {path = "../common"}
+anyhow = "1.0.98"
