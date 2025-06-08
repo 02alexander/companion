@@ -24,3 +24,11 @@ PWM
 Encoder A
 Forward Reverse
 
+Motor   Function    Släpring
+Brown   12V         Orange
+Red     Ground      Black
+Orange  Start/Stop  Green
+Yellow  PWM         Gray
+Green   Forward/R   Yellow
+Blue    5V          Purple
+Purple  Encoder A   White

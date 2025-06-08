@@ -17,6 +17,10 @@ impl<I> RotaryEncoder for MagneticEncoder<I> where I: embedded_hal_async::i2c::I
         let mut response = [0 as u8; 2];
         self.channel.write_read(0x36u8, &msg, &mut response).await?;
         let rot = u16::from_be_bytes(response);
-        Ok(rot as f32 * (core::f32::consts::PI*2.0 / 4096.0))
+        let mut angle = rot as f32 * (core::f32::consts::PI*2.0 / 4096.0);
+        if angle >= core::f32::consts::PI {
+            angle -= 2.0*core::f32::consts::PI;
+        }
+        Ok(angle)
     }
 }

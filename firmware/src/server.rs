@@ -19,6 +19,8 @@ use {defmt_rtt as _, panic_probe as _};
 use crate::Irqs;
 use crate::assign::*;
 
+pub static GOT_CONNECTION: mpmc::Q4<()> = mpmc::Q4::new();
+
 #[embassy_executor::task]
 async fn cyw43_task(
     runner: cyw43::Runner<'static, Output<'static>, PioSpi<'static, PIO0, 0, DMA_CH0>>,
@@ -131,6 +133,7 @@ pub async fn transmitter(stack: embassy_net::Stack<'static>, mut control: Contro
         }
 
         info!("Received connection from {:?}", socket.remote_endpoint());
+        let _ = GOT_CONNECTION.enqueue(());
         // control.gpio_set(0, true).await;
 
         loop {

@@ -24,7 +24,7 @@ impl NidecMotor {
     /// `output` should be a value in the interval [-1.0, 1.0]
     pub fn set_output(&mut self, output: f32) {
         self.output = output;
-        let min_mag = 5.0 / 200.0;
+        let min_mag = 3.0 / 200.0;
         let mag = output.abs() * ((1.0 - min_mag)*200.0);
 
         if output < 0.0 {
@@ -46,7 +46,7 @@ impl NidecMotor {
         pwm: Pwm<'static>,
     ) -> Self {
         let counter = Rc::new(AtomicI32::new(0));
-        unwrap!(spawner.spawn(tracker(encoder_pin, counter.clone())));
+        // unwrap!(spawner.spawn(tracker(encoder_pin, counter.clone())));
         assert_eq!(pwm.max_duty_cycle(), 200);
         NidecMotor {
             dir_pin,
