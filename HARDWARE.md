@@ -1,5 +1,5 @@
 
-NIDEC 24V brushless motor
+NIDEC 24H brushless motor
 NIDEC pinout, from left to right (when the connector is directed towards you and the rotor is pointing up):
 - Power positive
 - Power negative
@@ -15,7 +15,6 @@ Encoders: There's 25 holes for each encoder, giving us a precision of 360/(2*2*2
 Direction: Low means Counter clockwise rotation when axis is pointing towards you.
 PWM: always low means highest speed.
 
-
 Släpring connections, from red to purple
 Power positive
 Ground
@@ -25,10 +24,11 @@ Encoder A
 Forward Reverse
 
 Motor   Function    Släpring
-Brown   12V         Orange
-Red     Ground      Black
-Orange  Start/Stop  Green
-Yellow  PWM         Gray
-Green   Forward/R   Yellow
-Blue    5V          Purple
-Purple  Encoder A   White
+Brown               Orange
+Red                 Black
+Orange              Grey
+Yellow              Yellow
+Green               White
+Blue                Green
+
+OBS: The `PWM` and `Start/Stop` pin might be reversed.

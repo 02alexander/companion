@@ -2,13 +2,14 @@ use crate::encoder::{MagneticEncoder, RotaryEncoder};
 use crate::motor::NidecMotor;
 use crate::server::{GOT_CONNECTION, start_network, transmitter};
 use crate::*;
-use common::{EKF, LogMessage, SAMPLE_TIME_MS};
-use core::sync::atomic::{self, AtomicI16};
+use common::LogMessage;
+use common::external::nalgebra::Matrix1x3;
+use common::filter::{Model, pendulum_model};
+use common::{ControllerMessage, SAMPLE_TIME_MS, filter::EKF};
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_rp::gpio::{Input, Level, Output, Pull};
-use embassy_rp::i2c::{self, I2c};
-use embassy_rp::pwm;
+use embassy_rp::i2c::I2c;
 use embassy_rp::pwm::Pwm;
 use embassy_time::{Duration, Instant, Ticker, Timer};
 use heapless::mpmc::Q4;
@@ -44,30 +45,6 @@ pub async fn get_reference<T: RotaryEncoder>(encoder: &mut T) -> Result<f32, T::
     Ok(last)
 }
 
-pub struct Controller {
-    wheel_ticks: i32,
-    wheel_vel: f32,
-    pend_angle: f32,
-    pend_vel: f32,
-    ref_angle: f32,
-}
-
-impl Controller {
-    pub fn new(start_ticks: i32, ref_angle: f32) -> Controller {
-        Controller {
-            wheel_ticks: start_ticks,
-            ref_angle,
-            wheel_vel: 0.0,
-            pend_angle: 0.0,
-            pend_vel: 0.0,
-        }
-    }
-
-    pub fn step(&mut self, ticks: i32, angle: f32) -> Option<f32> {
-        Some(0.0)
-    }
-}
-
 pub async fn entrypoint(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
@@ -76,27 +53,23 @@ pub async fn entrypoint(spawner: Spawner) {
     // let pwm_slice = p.PWM_SLICE7;
     // let direction_pin = Output::new(p.PIN_14, Level::Low);
 
-    let encoder_pin = Input::new(p.PIN_8, Pull::Down);
+    let other_pwm_pin = Output::new(p.PIN_15, Level::High);
+    let encoder_pin = Input::new(p.PIN_9, Pull::Down);
     let pwm_pin = p.PIN_7;
     let pwm_slice = p.PWM_SLICE3;
-    let direction_pin = Output::new(p.PIN_9, Level::Low);
+    let direction_pin = Output::new(p.PIN_8, Level::Low);
 
-    let mut pwm_config = pwm::Config::default();
-    pwm_config.divider = 150.into();
-    pwm_config.top = 200;
-    pwm_config.compare_b = 0;
-    let motor_pwm = Pwm::new_output_b(pwm_slice, pwm_pin, pwm_config.clone());
-
-    let mut motor = NidecMotor::new(&spawner, direction_pin, encoder_pin, motor_pwm);
-
+    let motor_pwm = Pwm::new_output_b(pwm_slice, pwm_pin, Default::default());
+    let mut motor = NidecMotor::new(direction_pin, motor_pwm);
     let _enable_pin = Output::new(p.PIN_11, Level::High);
+    motor.set_output(0.0);
 
     // Initialize network server.
-    use crate::assign::*;
-    let r = split_resources!(p);
-    let (stack, control) = start_network(r.net, &spawner).await;
-    info!("network started!");
-    unwrap!(spawner.spawn(transmitter(stack, control, &LOG_MSG_QUEUE)));
+    // use crate::assign::*;
+    // let r = split_resources!(p);
+    // let (stack, control) = start_network(r.net, &spawner).await;
+    // info!("network started!");
+    // unwrap!(spawner.spawn(transmitter(stack, control, &LOG_MSG_QUEUE)));
 
     let sda = p.PIN_16;
     let scl = p.PIN_17;
@@ -115,27 +88,25 @@ pub async fn entrypoint(spawner: Spawner) {
 
     ticker.next().await;
 
-    let mut last_step = Instant::now();
-    let mut prev_ticks = None;
-
-    let mut ekf = EKF::default();
-
     info!("Fetching rotation...");
     let ref_angle = get_reference(&mut encoder).await.unwrap();
     info!("ref_angle = {}", ref_angle);
     info!("Fetched rotation!");
-    let ref_angle = -2.147573 - 0.0055;
+    let ref_angle = -2.147573 - 0.0055 - 0.017;
     let ref_angle = sub_angles(ref_angle, core::f32::consts::PI);
-    let mut pos_step = false;
-    motor.set_output(0.0);
 
-    info!("Waiting for connection...");
-    while let None = GOT_CONNECTION.dequeue() {
-        Timer::after_millis(100).await;
-    }
-    Timer::after_millis(2000).await;
+    // info!("Waiting for connection...");
+    // while let None = GOT_CONNECTION.dequeue() {
+    //     Timer::after_millis(500).await;
+    // }
+    // info!("Got connection!");
+    // Timer::after_millis(2000).await;
 
-    let start_time = Instant::now();
+    let mut ekf = EKF::from_model(pendulum_model());
+
+    let mut pos_step = true;
+    let mut last_step = Instant::now();
+
     info!("Entering control loop!");
     loop {
         let Ok(cur_angle) = encoder.rotation().await else {
@@ -144,46 +115,37 @@ pub async fn entrypoint(spawner: Spawner) {
         };
         let diff_angle = sub_angles(cur_angle, ref_angle);
         info!("angles {} - {} = {}", cur_angle, ref_angle, diff_angle);
-        let cur_time = Instant::now();
-
-        // if cur_time - start_time > Duration::from_millis(2000) {
-        //     motor.set_output(0.25);
-        // }
-
-        let F: common::external::nalgebra::Matrix1x3<f32> = [
-            [-16.817253264790242],
-            [15.38442249442338],
-            [0.0007010951026155611],
+        let y = ekf.model.h(ekf.x);
+        let F: Matrix1x3<f32> = [
+            [-0.005822502577461619],
+            [-8.180109598430773],
+            [-0.976298125919451],
         ]
         .into();
-        let u = (-F * ekf.state)[0];
-        // motor.set_output(u.clamp(-0.9, 0.9));
-        motor.set_output((u * 2.0).clamp(-0.95, 0.95) / 2.0 + 0.5);
-        info!("{} {}", u, motor.output);
+        let u = (-F * y)[0];
+        motor.set_output(u.clamp(-1.0, 1.0));
+        info!("u = {}", u);
+
+        // if Instant::now() - last_step > Duration::from_millis(1000) {
+        //     if pos_step {
+        //         motor.set_output(0.1);
+        //     } else {
+        //         motor.set_output(-0.1);
+        //     }
+        //     info!("Setting to {}", motor.output);
+        //     pos_step = !pos_step;
+        //     last_step = Instant::now();
+        // }
+
+        // motor.set_output(0.0);
+        // info!("{} {}", u, motor.output);
 
         ekf.time_update(motor.output);
 
-        let cur_ticks = motor.ticks();
+        ekf.measurment_update([0.0, diff_angle, 0.0].into())
+            .unwrap();
 
-        let Some((pt, t_pt)) = prev_ticks else {
-            prev_ticks = Some((cur_ticks, Instant::now()));
-            continue;
-        };
-        let cur_t = Instant::now();
-        let ticks_per_rev = 100.0;
-        let rev_per_sec =
-            (cur_ticks - pt) as f32 * 1e6 / (ticks_per_rev * ((cur_t - t_pt).as_micros() as f32));
-        let rad_per_sec = rev_per_sec * 2.0 * core::f32::consts::PI;
-
-        if rad_per_sec <= 10000.0 {
-            ekf.measurment_update([rad_per_sec, diff_angle, 0.0].into())
-                .unwrap();
-        }
-        prev_ticks = Some((cur_ticks, cur_t));
-
-        let y = ekf.C * ekf.state;
-
-        let msg = LogMessage {
+        let msg = ControllerMessage {
             time_ms: Instant::now().as_millis(),
             wheel_velocity: y[0],
             control: motor.output,
@@ -193,7 +155,7 @@ pub async fn entrypoint(spawner: Spawner) {
             sensor_wheel_velocity: motor.ticks() as f32,
         };
 
-        let _ = LOG_MSG_QUEUE.enqueue(msg);
+        let _ = LOG_MSG_QUEUE.enqueue(LogMessage::Controller(msg));
 
         ticker.next().await;
     }

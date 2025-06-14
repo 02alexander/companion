@@ -1,4 +1,4 @@
-use common::LogMessage;
+use common::{ControllerMessage, LogMessage};
 use embassy_rp::peripherals::{DMA_CH0, PIO0};
 use cyw43::{Control, JoinOptions};
 use cyw43_pio::PioSpi;
@@ -122,7 +122,7 @@ pub async fn transmitter(stack: embassy_net::Stack<'static>, mut control: Contro
     
 
     let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
-    socket.set_timeout(Some(Duration::from_secs(5)));
+    // socket.set_timeout(Some(Duration::from_secs(15)));
 
     loop {
         // control.gpio_set(0, false).await;
@@ -157,10 +157,9 @@ pub async fn transmitter(stack: embassy_net::Stack<'static>, mut control: Contro
                         break;
                     }
                 }
-                Timer::after_millis(0).await;
+                Timer::after_millis(5).await;
             } else {
-                // info!("No message");
-                Timer::after_millis(0).await;
+                Timer::after_millis(5).await;
             }
         }
     }

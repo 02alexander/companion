@@ -1,9 +1,7 @@
 use core::sync::atomic::{self, AtomicI32};
 
 use alloc::rc::Rc;
-use defmt::unwrap;
-use embassy_executor::Spawner;
-use embassy_rp::{gpio::{Input, Output}, pwm::{Pwm, SetDutyCycle}};
+use embassy_rp::{gpio::{Input, Output}, pwm::{self, Pwm, SetDutyCycle}};
 
 pub struct NidecMotor {
     pwm: Pwm<'static>,
@@ -11,6 +9,8 @@ pub struct NidecMotor {
     pub output: f32,
     counter: Rc<AtomicI32>,
 }
+
+const TOP: u16  = 200;
 
 #[embassy_executor::task(pool_size=8)]
 async fn tracker(mut encoder_pin: Input<'static>, counter: Rc<AtomicI32>) {
@@ -24,15 +24,14 @@ impl NidecMotor {
     /// `output` should be a value in the interval [-1.0, 1.0]
     pub fn set_output(&mut self, output: f32) {
         self.output = output;
-        let min_mag = 3.0 / 200.0;
-        let mag = output.abs() * ((1.0 - min_mag)*200.0);
+        let mag = (1.0-output.abs().clamp(0.0, 1.0))*TOP as f32;
 
         if output < 0.0 {
             self.dir_pin.set_high();
         } else {
             self.dir_pin.set_low();
         }
-        self.pwm.set_duty_cycle((mag as u16).clamp(5, 200)).unwrap();
+        self.pwm.set_duty_cycle(mag as u16).unwrap();
     }
 
     pub fn ticks(&self) -> i32 {
@@ -40,14 +39,17 @@ impl NidecMotor {
     }
 
     pub fn new(
-        spawner: &Spawner,
         dir_pin: Output<'static>,
-        encoder_pin: Input<'static>,
-        pwm: Pwm<'static>,
+        mut pwm: Pwm<'static>,
     ) -> Self {
         let counter = Rc::new(AtomicI32::new(0));
         // unwrap!(spawner.spawn(tracker(encoder_pin, counter.clone())));
-        assert_eq!(pwm.max_duty_cycle(), 200);
+
+        let mut pwm_config = pwm::Config::default();
+        pwm_config.divider = 150.into();
+        pwm_config.top = TOP;
+        pwm_config.compare_b = TOP;
+        pwm.set_config(&pwm_config);
         NidecMotor {
             dir_pin,
             pwm,

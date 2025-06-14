@@ -1,4 +1,3 @@
-use common::EKF;
 use rerun::dataframe::{QueryEngine, QueryExpression, SparseFillStrategy};
 use rerun::external::arrow;
 use rerun::external::arrow::array::{Array, Float64Array, ListArray, PrimitiveArray};
