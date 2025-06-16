@@ -8,12 +8,10 @@ struct Model {
 }
 
 impl Model {
-    // pub fn new(start_state: Mat<3,1>) -> {
-    
-    // }
+    pub fn new(start_state: Mat<3,1>) -> Self {
+        unimplemented!()
+    }
 }
-
-
 fn main() {
 
 }
