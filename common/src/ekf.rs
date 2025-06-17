@@ -1,5 +1,5 @@
 
-use nalgebra::{Matrix3, SMatrix};
+use nalgebra::SMatrix;
 
 pub type Mat<const R: usize, const C: usize> = SMatrix<f32, R, C>;
 

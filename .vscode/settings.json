@@ -6,7 +6,6 @@
         "firmware/Cargo.toml",
         "receiver/Cargo.toml",
         "common/Cargo.toml",
-        "analysis/Cargo.toml",
         "dp/Cargo.toml"
     ]
 }
