@@ -1,4 +1,4 @@
-use common::{ControllerMessage, LogMessage};
+use common::LogMessage;
 use embassy_rp::peripherals::{DMA_CH0, PIO0};
 use cyw43::{Control, JoinOptions};
 use cyw43_pio::PioSpi;
@@ -10,7 +10,7 @@ use embassy_rp::clocks::RoscRng;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::interrupt::typelevel::Interrupt;
 use embassy_rp::pio::Pio;
-use embassy_time::{Duration, Timer};
+use embassy_time::Timer;
 use embedded_io_async::Write;
 use heapless::mpmc;
 use rand::RngCore;
