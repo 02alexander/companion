@@ -13,12 +13,21 @@
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             (rust-bin.fromRustupToolchainFile ./rust-toolchain.toml)
-            (python313.withPackages
-              (ps: with ps; [ numpy scipy matplotlib rerun-sdk pandas control jupyter]))
+            (python313.withPackages (ps:
+              with ps; [
+                numpy
+                scipy
+                matplotlib
+                rerun-sdk
+                pandas
+                control
+                jupyter
+              ]))
             elf2uf2-rs
             probe-rs
             picotool
             udev
+            ty
             ruff
           ];
         };

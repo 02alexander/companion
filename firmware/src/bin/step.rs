@@ -27,15 +27,11 @@ async fn track_encoder(mut pin1: Input<'static>, mut pin2: Input<'static>) -> ! 
 
         // Keeps track of the relative position of the motor.
         let cur_state = (pin1.is_high(), pin2.is_high());
-        if prev_state == (true, true) {
-            if cur_state == (true, false) {
-                TICKS.fetch_sub(1, atomic::Ordering::Relaxed);
-            }
+        if prev_state == (true, true) && cur_state == (true, false) {
+            TICKS.fetch_sub(1, atomic::Ordering::Relaxed);
         }
-        if prev_state == (true, false) {
-            if cur_state == (true, true) {
-                TICKS.fetch_add(1, atomic::Ordering::Relaxed);
-            }
+        if prev_state == (true, false) && cur_state == (true, true) {
+            TICKS.fetch_add(1, atomic::Ordering::Relaxed);
         }
 
         // Tracks the absolute value of its change, using only one pin.

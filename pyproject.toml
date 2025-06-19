@@ -1,0 +1,5 @@
+[project]
+name= "analysis"
+version = "0.0.1"
+[tool.ty.environment]
+python = "/nix/store/i6q5hxy5969ycqn52n29pgcnzp3wdrn1-python3-3.13.3-env/bin/python"

@@ -7,7 +7,7 @@ pub struct NidecMotor {
     pub output: f32,
 }
 
-const TOP: u16  = 200;
+const TOP: u16  = 100;
 
 impl NidecMotor {
     /// `output` should be a value in the interval [-1.0, 1.0]
@@ -30,7 +30,7 @@ impl NidecMotor {
         // unwrap!(spawner.spawn(tracker(encoder_pin, counter.clone())));
 
         let mut pwm_config = pwm::Config::default();
-        pwm_config.divider = 150.into();
+        pwm_config.divider = 75.into();
         pwm_config.top = TOP;
         pwm_config.compare_b = TOP;
         pwm.set_config(&pwm_config);

@@ -29,3 +29,4 @@ bind_interrupts!(pub struct Irqs {
 pub mod server;
 pub mod encoder;
 pub mod motor;
+pub mod dptable;

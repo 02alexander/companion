@@ -52,22 +52,17 @@ pub async fn get_reference<T: RotaryEncoder>(encoder: &mut T) -> Result<f32, T::
 pub async fn entrypoint(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
-    // let encoder_pin = Input::new(p.PIN_12, Pull::Down);
-    // let pwm_pin = p.PIN_15;
-    // let pwm_slice = p.PWM_SLICE7;
-    // let direction_pin = Output::new(p.PIN_14, Level::Low);
+    let dir_pin = Output::new(p.PIN_8, Level::Low);
+    let motor_pwm = Pwm::new_output_b(p.PWM_SLICE3, p.PIN_7, Default::default());
+    let mut motor1 = NidecMotor::new(dir_pin, motor_pwm);
+    motor1.set_output(0.0);
 
-    let _other_pwm_pin = Output::new(p.PIN_15, Level::High);
-    let _encoder_pin = Input::new(p.PIN_9, Pull::Down);
+    let dir_pin = Output::new(p.PIN_14, Level::Low);
+    let motor_pwm = Pwm::new_output_b(p.PWM_SLICE7, p.PIN_15, Default::default());
+    let mut motor2 = NidecMotor::new(dir_pin, motor_pwm);
+    motor2.set_output(0.0);
 
-    let pwm_pin = p.PIN_7;
-    let pwm_slice = p.PWM_SLICE3;
-    let direction_pin = Output::new(p.PIN_8, Level::Low);
-
-    let motor_pwm = Pwm::new_output_b(pwm_slice, pwm_pin, Default::default());
-    let mut motor = NidecMotor::new(direction_pin, motor_pwm);
-    let _enable_pin = Output::new(p.PIN_11, Level::High);
-    motor.set_output(0.0);
+    let mut motor = motor1;
 
     // Initialize network server.
     use firmware::assign::*;
@@ -79,29 +74,20 @@ pub async fn entrypoint(spawner: Spawner) {
 
     let sda = p.PIN_16;
     let scl = p.PIN_17;
-    let i2c = I2c::new_async(
-        p.I2C0,
-        scl,
-        sda,
-        firmware::Irqs,
-        Default::default(),
-    );
+    let i2c = I2c::new_async(p.I2C0, scl, sda, firmware::Irqs, Default::default());
 
     let mut encoder = MagneticEncoder { channel: i2c };
 
     info!("Fetching rotation...");
-    let ref_angle = get_reference(&mut encoder).await.unwrap();
-    info!("ref_angle = {}", ref_angle);
-    info!("Fetched rotation!");
-    let ref_angle = -2.147573 - 0.0055 - 0.017;
-    let ref_angle = sub_angles(ref_angle, core::f32::consts::PI);
+    let bottom_angle = -1.8149946;
+    let ref_angle = sub_angles(bottom_angle, core::f32::consts::PI);
 
-    info!("Waiting for connection...");
-    while let None = GOT_CONNECTION.dequeue() {
-        Timer::after_millis(500).await;
-    }
-    info!("Got connection!");
-    Timer::after_millis(500).await;
+    // info!("Waiting for connection...");
+    // while let None = GOT_CONNECTION.dequeue() {
+    //     Timer::after_millis(500).await;
+    // }
+    // info!("Got connection!");
+    // Timer::after_millis(500).await;
 
     let ts = Duration::from_millis(SAMPLE_TIME_MS as u64);
     let mut ticker = Ticker::every(ts);
@@ -118,17 +104,11 @@ pub async fn entrypoint(spawner: Spawner) {
         info!("angles {} - {} = {}", cur_angle, ref_angle, diff_angle);
         let y = ekf.model.h(ekf.x);
 
-        #[allow(clippy::ercessive_precision)]
-        let f: Matrix1x3<f32> = [
-            [-0.005822502577461619],
-            [-8.180109598430773],
-            [-0.976298125919451],
-        ]
-        .into();
+        let f: Matrix1x3<f32> = [[-0.00582251], [-8.19081], [-0.977591]].into();
         let u = (-f * y)[0];
         motor.set_output(u.clamp(-1.0, 1.0));
         info!("u = {}", u);
-        
+
         ekf.time_update(motor.output);
 
         ekf.measurment_update([0.0, diff_angle, 0.0].into())

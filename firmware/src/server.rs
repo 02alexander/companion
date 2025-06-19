@@ -41,7 +41,7 @@ pub async fn start_network(net: Netresources, spawner: &Spawner) -> (embassy_net
     let spi = PioSpi::new(
         &mut pio.common,
         pio.sm0,
-        (16 as u16).into(),
+        (16_u16).into(),
         pio.irq0,
         cs,
         net.dio,
@@ -138,7 +138,7 @@ pub async fn transmitter(stack: embassy_net::Stack<'static>, mut control: Contro
 
         loop {
             if let Some(msg) = channel.dequeue() {                
-                let mut formatted = [0 as u8; 32];
+                let mut formatted = [0_u8; 32];
 
                 let Ok(n) = bincode::serde::encode_into_slice(msg, &mut formatted[2..], bincode::config::standard()) else {
                     warn!("Failed to encode msg");
