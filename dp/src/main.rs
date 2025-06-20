@@ -1,122 +1,41 @@
-use std::{f64::{consts::PI, INFINITY}, fs::OpenOptions, io::Write, os::linux::raw::stat};
+use std::{
+    f32::consts::PI,
+};
 
-use common::dp::{cont, disc_state};
+use common::dp::{cont, cont_u, Agent, NLPendulumModel, DT, NPARAM, NU};
 use nalgebra::SMatrix;
 use ordered_float::NotNan;
-use rand::{rngs::SmallRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::SmallRng};
+use rerun::Vec2D;
 
-pub type Mat<const R: usize, const C: usize> = SMatrix<f64, R, C>;
+pub type Mat<const R: usize, const C: usize> = SMatrix<f32, R, C>;
 
-#[derive(Clone, Copy, Debug)]
-struct PendulumState {
-    omegaf: f64,
-    theta: f64,
-    thetadot: f64,
+fn sub_angles(a: f32, b: f32) -> f32 {
+    let mut diff_angle = a - b;
+    while diff_angle < -core::f32::consts::PI {
+        diff_angle += 2.0 * core::f32::consts::PI;
+    } 
+    while diff_angle > core::f32::consts::PI {
+        diff_angle -= 2.0 * core::f32::consts::PI;
+    }
+    diff_angle
 }
 
-impl PendulumState {
-
-    pub fn bottom() -> PendulumState {
-        PendulumState { omegaf:  0.0, theta: PI, thetadot: 0.0 }
-    }
-
-    pub fn step(&mut self, u: f64, dt: f64) {
-        let ir = 0.03320426557380722 * 2.0;
-        let T = 0.7;
-        let g = 9.81;
-        let r = 0.145;
-        let domegaf = dt * (330.0 * u - self.omegaf) / T;
-        let dtheta = dt * self.thetadot;
-        let dthetadot = dt
-            * (-ir * (330.0 * u - self.omegaf) / T - 0.2 * self.thetadot
-                + g / r * self.theta.sin());
-
-        self.omegaf += domegaf;
-        self.theta += dtheta;
-        self.thetadot += dthetadot;
-
-        if self.theta > PI {
-            self.theta -= 2.0 * PI;
-        } else if self.theta < -PI {
-            self.theta += 2.0 * PI;
-        }
-
-    }
-
-    pub fn as_canon_vec(&self) -> Mat<3,1> {
-        if self.theta < 0.0 {
-            -self.as_vec()
-        } else {
-            self.as_vec()
-        }
-    }
-
-    pub fn as_vec(&self) -> Mat<3,1> {
-        [
-            self.omegaf/100.0,
-            self.theta,
-            self.thetadot/10.0,
-        ].into()
-    }
-
-}
-
-const NU: usize = 11;
-const NPARAM: usize = 4;
-
-fn cont_u(du: usize) -> f32 {
-    cont(-1.0, 1.0, NU, du)
-}
-
-struct Agent {
-    parameters: Mat<NU,NPARAM>,
-}
-
-fn append1(m: Mat<3,1>) -> Mat<4,1> {
-    [m[0], m[1], m[2], 1.0].into()
-}
-
-impl Agent {
-    pub fn new() -> Agent {
-        Agent {
-            parameters: Mat::zeros(),
-        }
-    }
-    pub fn eval(&self , state: &PendulumState, action: usize) -> f64 {
-        (self.parameters.row(action) * append1(state.as_canon_vec()))[0]
-    }
-
-    pub fn grad(&self, state: &PendulumState, action: usize) -> Mat<NU,NPARAM> {
-        let mut zeros: Mat<NU,NPARAM> = Mat::zeros();
-
-        zeros.set_row(action, &append1(state.as_canon_vec()).transpose());
-        zeros
-    }
-
-    pub fn best_action(&self, state: &PendulumState) -> usize {
-        (0..NU).max_by_key(|&action| NotNan::new(self.eval(state, action)).unwrap()).unwrap()
-    }
-
-    pub fn max_qsa(&self, state: &PendulumState) -> f64 {
-        (0..NU).map(|action| NotNan::new(self.eval(state, action)).unwrap()).max().unwrap().into()
-    }
-}
-
-fn simulate_episode(agent: &Agent, epsilon: f64, n: usize) -> Vec<(PendulumState, usize, f64)> {
+fn simulate_episode(agent: &Agent, epsilon: f32, n: usize) -> Vec<(NLPendulumModel, usize, f32)> {
     let mut trajectory = Vec::new();
     let mut rng = SmallRng::from_os_rng();
-    let mut state = PendulumState::bottom();
+    let mut state = NLPendulumModel::bottom();
     for _ in 0..n {
-        let action = if rng.random_bool(epsilon) {
+        let action = if rng.random_bool(epsilon as f64) {
             rng.random_range(0..NU)
         } else {
-            agent.best_action(&state)
+            agent.best_action(&state.as_vec())
         };
 
-        let u = cont_u(action);
+        let u = cont_u(action)*1.0;
         let cur_state = state.clone();
         for _ in 0..10 {
-            state.step(u as f64, 0.03/10.0);
+            state.step(u as f32, 0.01 / 10.0);
         }
 
         trajectory.push((cur_state, action, reward(&state)));
@@ -124,53 +43,97 @@ fn simulate_episode(agent: &Agent, epsilon: f64, n: usize) -> Vec<(PendulumState
     trajectory
 }
 
-fn reward(state: &PendulumState) -> f64 {
+fn reward(state: &NLPendulumModel) -> f32 {
     assert!(state.theta.abs() < 4.0);
-    (4.0 - state.theta.abs()).powi(2)
+    if state.theta.abs() < 0.1 {
+        50.0*(-state.thetadot.abs()).exp()
+    } else {
+        sub_angles(PI, state.theta).powi(2)
+    }
 }
-
 
 fn main() {
     let mut agent = Agent::new();
 
-    let learning_rate = 0.000000001;
-    let discount = 0.995;
-    
-    let mut latest_trajectory = Vec::new();
-    for _ in 0..10000 {
-        
-        let n = 1000;
-        let trajectory = simulate_episode(&agent, 0.15, n);
+    let learning_rate = 1e-3;
+    let discount = 0.95;
+
+    for _ in 0..1000 {
+        let n = (1000.0 / DT).round() as usize;
+        let trajectory = simulate_episode(&agent, 0.3, n);
         let mut tot_reward = 0.0;
-        // for i in 0..1 {
 
-        let mut eligibility_trace = agent.grad(&trajectory[0].0, 0);
+        let mut eligibility_trace = agent.grad(&trajectory[0].0.as_vec());
         eligibility_trace = Mat::zeros();
-        let lambda = 0.9;
-
-        for i in (0..trajectory.len()-1).rev() {
-            let (state, action, reward) = trajectory[i].clone();
+        let lambda = 0.0;
+        let mut tot_error = 0.0;
+        let mut tot_grad: Mat<1, NPARAM> = Mat::zeros();
+        for i in (0..trajectory.len() - 1).rev() {
+            let (state, _action, reward) = trajectory[i].clone();
             tot_reward += reward;
-            let next_state = trajectory[i+1].0;
-            
-            let qsa = agent.eval(&state, action);
-            let target = reward + discount*agent.max_qsa(&next_state);
-            // let target = reward + discount*agent.(&next_state);
+            let next_state = trajectory[i + 1].0;
+
+            let qsa = agent.eval(&state.as_vec());
+            let target = reward + discount * agent.eval(&next_state.as_vec());
 
             let error = qsa - target;
-            let grad = agent.grad(&state, action);
+            tot_error += error.abs();
+            let grad = agent.grad(&state.as_vec());
 
-            eligibility_trace = eligibility_trace*lambda + grad;
+            eligibility_trace = eligibility_trace * lambda + grad;
 
-            agent.parameters += eligibility_trace*error*learning_rate;
+            // tot_grad += eligibility_trace * error;
+            agent.parameters -= eligibility_trace * error * learning_rate / n as f32;
         }
-        println!("{:.5}", tot_reward/n as f64);
-        latest_trajectory = trajectory;
+        // agent.parameters -= tot_grad * learning_rate / n as f32;
+        println!("{:.5} {:.5}", tot_reward / n as f32, tot_error / n as f32);
     }
 
+    let rec = rerun::RecordingStreamBuilder::new("pendulum_rl")
+        .connect_grpc()
+        .unwrap();
 
-    for (state, action, reward) in simulate_episode(&agent, 0.0, 500) {
-        println!("{:.5} {} {:.5}", state.theta, action, cont_u(action));
+    let mut tot_reward = 0.0;
+
+    // agent.parameters = [-0.0017227157,0.03166425,0.016089529,0.01576941,0.038933054].into();
+
+    for (i, &(state, action, reward)) in simulate_episode(&agent, 0.0, (10.0/DT as f32).round() as usize).iter().enumerate() {
+        rec.set_time_sequence("step", i as i64);
+
+        rec.log(
+            "stang",
+            &rerun::LineStrips2D::new([[
+                Vec2D::new(0.0, 0.0),
+                Vec2D::new(-state.theta.sin() as f32, -state.theta.cos() as f32),
+            ]]),
+        )
+        .unwrap();
+
+        let u = cont_u(action);
+        rec.log("omegaf", &rerun::Scalars::single(state.omegaf as f64)).unwrap();
+        rec.log("theta", &rerun::Scalars::single(state.theta as f64)).unwrap();
+        rec.log("thetadot", &rerun::Scalars::single(state.thetadot as f64)).unwrap();
+        rec.log("control", &rerun::Scalars::single(u as f64)).unwrap();
+        rec.log("reward", &rerun::Scalars::single(reward as f64)).unwrap();
+
+        tot_reward += reward;
+        println!(
+            "{:<12.5} {:.5} {:.5} {} {:.5} {:.5} {:.5}",
+            state.omegaf,
+            state.theta,
+            state.thetadot,
+            action,
+            u,
+            reward,
+            agent.eval(&state.as_vec())
+        );
     }
-    println!("{}", agent.parameters);
+    println!("{}", tot_reward / 200.0);
+    
+    print!("[");
+    for param in &agent.parameters {
+        print!("{},", param);
+    }
+    println!("]");
+
 }
