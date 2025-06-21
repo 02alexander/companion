@@ -3,8 +3,8 @@
 
 use core::f32::consts::PI;
 
-use common::dp::{cont_u, disc_state};
-use common::filter::{pendulum_model, EKF};
+use common::dp::{cont_u, Agent};
+use common::filter::{pendulum_model, Model, NLModel, EKF};
 use embassy_rp::i2c::I2c;
 use firmware::dptable::DP_TABLE;
 use firmware::encoder::{MagneticEncoder, RotaryEncoder};
@@ -20,9 +20,10 @@ use {defmt_rtt as _, panic_probe as _};
 
 fn sub_angles(a: f32, b: f32) -> f32 {
     let mut diff_angle = a - b;
-    if diff_angle < -core::f32::consts::PI {
+    while diff_angle < -core::f32::consts::PI {
         diff_angle += 2.0 * core::f32::consts::PI;
-    } else if diff_angle > core::f32::consts::PI {
+    } 
+    while diff_angle > core::f32::consts::PI {
         diff_angle -= 2.0 * core::f32::consts::PI;
     }
     diff_angle
@@ -53,32 +54,34 @@ pub async fn entrypoint(_spawner: Spawner) {
     );
     let mut encoder = MagneticEncoder { channel: i2c };
     let ref_angle = -1.8149946;
+    let ref_angle = sub_angles(-1.8149946, PI);
     // let ref_angle = encoder.rotation().await.unwrap();
     info!("ref_angle = {}", ref_angle);
 
     let mut prev_angles = [0.0; 2000];
 
-    let mut ekf = EKF::from_model(pendulum_model());
+    let mut ekf = EKF::from_model(NLModel {dt: 0.01});
     
+    let mut agent = Agent::new();
+    agent.parameters = [-0.040831022,0.0051453677,0.23291656,-1.8110611,0.58743167,].into();
+
     loop {
 
-        ekf.time_update(motor.output);
+        ekf.time_update(1.0);
 
         if let Ok(raw_angle) = encoder.rotation().await {
             let angle = sub_angles(raw_angle, ref_angle);
-            ekf.measurment_update([0.0, angle, 0.0].into());
+
+            let pred = ekf.x[1];
+            
+            ekf.measurment_update_from_error([sub_angles(angle, pred)].into());
+
         }
 
-        let state = ekf.model.C * ekf.x;
-
-        let dstate = disc_state(state);
-        let u = cont_u(DP_TABLE[dstate[0]][dstate[1]][dstate[2]] as usize);
+        info!("{} {} {}", ekf.x[0], sub_angles(ekf.x[1], 0.0), ekf.x[2]);
+        let u = cont_u(agent.best_action(&ekf.x));
         motor.set_output(u);
         info!("u = {}", u);
-        
-
-        // let t = Instant::now().as_micros() as f32*1e-6;
-        // motor.set_output(libm::cosf(t*2.0*PI)*0.2);
 
         ticker.next().await;
     }

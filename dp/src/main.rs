@@ -59,34 +59,24 @@ fn main() {
     let discount = 0.95;
 
     for _ in 0..1000 {
-        let n = (1000.0 / DT).round() as usize;
+        let n = (10.0 / DT).round() as usize;
         let trajectory = simulate_episode(&agent, 0.3, n);
         let mut tot_reward = 0.0;
 
-        let mut eligibility_trace = agent.grad(&trajectory[0].0.as_vec());
-        eligibility_trace = Mat::zeros();
-        let lambda = 0.0;
-        let mut tot_error = 0.0;
-        let mut tot_grad: Mat<1, NPARAM> = Mat::zeros();
-        for i in (0..trajectory.len() - 1).rev() {
-            let (state, _action, reward) = trajectory[i].clone();
-            tot_reward += reward;
-            let next_state = trajectory[i + 1].0;
-
-            let qsa = agent.eval(&state.as_vec());
-            let target = reward + discount * agent.eval(&next_state.as_vec());
-
-            let error = qsa - target;
-            tot_error += error.abs();
-            let grad = agent.grad(&state.as_vec());
-
-            eligibility_trace = eligibility_trace * lambda + grad;
-
-            // tot_grad += eligibility_trace * error;
-            agent.parameters -= eligibility_trace * error * learning_rate / n as f32;
+        let mut gt = Vec::new();
+        for reward in trajectory[0..trajectory.len()].iter().map(|a|a.2).rev() {
+            gt.push(reward + discount * gt.last().unwrap_or(&0.0));
         }
-        // agent.parameters -= tot_grad * learning_rate / n as f32;
-        println!("{:.5} {:.5}", tot_reward / n as f32, tot_error / n as f32);
+        gt.reverse();
+
+
+        for i in 0..trajectory.len() {
+            let (state, _action, _) = trajectory[i].clone();
+            let g = gt[i];
+
+            // agent.parameters -= grad * error * learning_rate / n as f32;
+        }
+        println!("{:.5}", tot_reward / n as f32);
     }
 
     let rec = rerun::RecordingStreamBuilder::new("pendulum_rl")

@@ -6,3 +6,5 @@ edition = "2024"
 [dependencies]
 serde={version="1", default-features=false, features=["derive"]}
 nalgebra = {version="0.33.2", default-features = false, features = ["libm-force"]}
+libm = "0.2.15"
+# ordered-float = "5.0.0"

@@ -4,7 +4,7 @@ use {defmt_rtt as _, panic_probe as _};
 
 use common::LogMessage;
 use common::external::nalgebra::Matrix1x3;
-use common::filter::{Model, pendulum_model};
+use common::filter::{pendulum_model, Model, NLModel};
 use common::{ControllerMessage, SAMPLE_TIME_MS, filter::EKF};
 use defmt::*;
 use embassy_executor::Spawner;
@@ -65,12 +65,12 @@ pub async fn entrypoint(spawner: Spawner) {
     let mut motor = motor1;
 
     // Initialize network server.
-    use firmware::assign::*;
-    use firmware::split_resources;
-    let r = split_resources!(p);
-    let (stack, control) = start_network(r.net, &spawner).await;
-    info!("network started!");
-    unwrap!(spawner.spawn(transmitter(stack, control, &LOG_MSG_QUEUE)));
+    // use firmware::assign::*;
+    // use firmware::split_resources;
+    // let r = split_resources!(p);
+    // let (stack, control) = start_network(r.net, &spawner).await;
+    // info!("network started!");
+    // unwrap!(spawner.spawn(transmitter(stack, control, &LOG_MSG_QUEUE)));
 
     let sda = p.PIN_16;
     let scl = p.PIN_17;
@@ -89,43 +89,43 @@ pub async fn entrypoint(spawner: Spawner) {
     // info!("Got connection!");
     // Timer::after_millis(500).await;
 
+    // let ts = Duration::from_millis(500 as u64);
     let ts = Duration::from_millis(SAMPLE_TIME_MS as u64);
     let mut ticker = Ticker::every(ts);
 
-    let mut ekf = EKF::from_model(pendulum_model());
+    let mut ekf = EKF::from_model(NLModel {dt: SAMPLE_TIME_MS as f32 *1e-3});
 
     info!("Entering control loop!");
     loop {
-        let Ok(cur_angle) = encoder.rotation().await else {
-            info!("Failed to read from encoder");
-            continue;
-        };
-        let diff_angle = sub_angles(cur_angle, ref_angle);
-        info!("angles {} - {} = {}", cur_angle, ref_angle, diff_angle);
+        ticker.next().await;
+
+        if let Ok(raw_angle) = encoder.rotation().await {
+            let angle = sub_angles(raw_angle, ref_angle);
+            let pred = ekf.x[1];            
+            ekf.measurment_update_from_error([sub_angles(angle, pred)].into());
+        } else {
+            warn!("Failed to read from encoder");
+        }
         let y = ekf.model.h(ekf.x);
 
-        let f: Matrix1x3<f32> = [[-0.00582251], [-8.19081], [-0.977591]].into();
-        let u = (-f * y)[0];
+        let f: Matrix1x3<f32> = [[-0.00582551],[-8.00347],[-0.967164]].into();
+        let u = (-f * ekf.x)[0];
         motor.set_output(u.clamp(-1.0, 1.0));
         info!("u = {}", u);
 
         ekf.time_update(motor.output);
 
-        ekf.measurment_update([0.0, diff_angle, 0.0].into())
-            .unwrap();
 
         let msg = ControllerMessage {
             time_ms: Instant::now().as_millis(),
             wheel_velocity: y[0],
             control: motor.output,
-            pend_angle: y[1],
-            pend_velocity: y[2],
-            sensor_pend_angle: diff_angle,
+            pend_angle: y[0],
+            pend_velocity: y[0],
+            sensor_pend_angle: 0.0,
             sensor_wheel_velocity: 0.0,
         };
 
         let _ = LOG_MSG_QUEUE.enqueue(LogMessage::Controller(msg));
-
-        ticker.next().await;
     }
 }
