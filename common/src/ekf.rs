@@ -62,9 +62,9 @@ pub struct NLModel {
 impl Model<3, 1> for NLModel {
     fn Q(&self) -> Mat<3, 3> {
         Mat::from_rows(&[
-            [1.0, 0.0, 0.0].into(),
+            [0.00001, 0.0, 0.0].into(),
             [0.0, 0.0, 0.0].into(),
-            [0.0, 0.0, 1000000.0*1000000.0].into(),
+            [0.0, 0.0, 100000000.0*100000000.0].into(),
         ])
     }
 

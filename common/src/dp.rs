@@ -65,7 +65,7 @@ impl NLPendulumModel {
     }
 }
 
-pub const NPARAM: usize = 7;
+pub const NPARAM: usize = 5;
 
 pub struct Agent {
     pub parameters: Mat<NU, NPARAM>,
@@ -86,30 +86,46 @@ impl Agent {
         }
     }
 
-    pub fn eval_with_params(state: &Mat<3, 1>, params: Mat<1, NPARAM>) -> f32 {
+    pub fn h_with_params(state: &Mat<3, 1>, params: Mat<1, NPARAM>) -> f32 {
         params[0] * state[1]
-            + powi(params[1] * state[1], 2)
+            + params[1] * powi(state[1], 2)
             + params[2] * state[2]
-            + powi(params[3] * state[2], 2)
+            + params[3] * powi(state[2], 2)
             + params[4]
     }
 
-    pub fn eval(&self, state: &Mat<3, 1>, action: usize) -> f32 {
-        let a: Mat<1, NPARAM> =self.parameters.row(action).into();
-        Self::eval_with_params(state, a)
+    pub fn grad_h(state: &Mat<3,1>, params: Mat<1, NPARAM>) -> Mat<1, NPARAM> {
+        [
+            state[1],
+            powi(state[1], 2),
+            state[2],
+            powi(state[2], 2),
+            1.0,
+        ].into()
     }
 
-    pub fn grad(&self, state: &Mat<3, 1>, action: usize) -> Mat<1, NPARAM> {
-        let mut deriv: Mat<1, NPARAM> = Mat::zeros();
-        let h = 0.001;
-        for i in 0..NPARAM {
-            // let mut change: Mat<NU, NPARAM> = Mat::zeros();
-            // change[i] = h;
-            // deriv[i] = (Self::eval_with_params(&state, self.parameters + change)
-            //     - Self::eval_with_params(state, self.parameters))
-            //     / h;
+    pub fn eval_all_actions(&self, state: &Mat<3,1>) -> Mat<NU, 1> {
+        let mut exps = [0.0_f32; NU];
+        for action in 0..NU {
+            exps[action] = libm::expf(Self::h_with_params(state, self.parameters.row(action).into()));
         }
-        deriv
+        let sum: f32 = exps.iter().sum();
+        for action in 0..NU {
+            exps[action] /= sum;
+        }
+        exps.into()
+    }
+
+    pub fn eval(&self, state: &Mat<3, 1>, action: usize) -> f32 {
+        let mut exps = [0.0_f32; NU];
+        for i in 0..NU {
+            exps[i] = libm::expf(Self::h_with_params(state, self.parameters.row(action).into()));
+        }
+        exps[action]/exps.iter().sum::<f32>()
+    }
+
+    pub fn grad(&self, state: &Mat<3, 1>, action: usize) -> Mat<NU, NPARAM> {
+        unimplemented!()
     }
 
     pub fn action_value(&self, state: &Mat<3, 1>, action: usize) -> f32 {
