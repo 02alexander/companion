@@ -1,5 +1,5 @@
+use crate::{Irqs, Netresources};
 use common::LogMessage;
-use embassy_rp::peripherals::{DMA_CH0, PIO0};
 use cyw43::{Control, JoinOptions};
 use cyw43_pio::PioSpi;
 use defmt::*;
@@ -9,15 +9,13 @@ use embassy_net::tcp::TcpSocket;
 use embassy_rp::clocks::RoscRng;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::interrupt::typelevel::Interrupt;
+use embassy_rp::peripherals::{DMA_CH0, PIO0};
 use embassy_rp::pio::Pio;
 use embassy_time::Timer;
 use embedded_io_async::Write;
 use heapless::mpmc;
-use rand::RngCore;
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
-use crate::Irqs;
-use crate::assign::*;
 
 pub static GOT_CONNECTION: mpmc::Q4<()> = mpmc::Q4::new();
 
@@ -33,8 +31,10 @@ async fn net_task(mut runner: embassy_net::Runner<'static, cyw43::NetDriver<'sta
     runner.run().await
 }
 
-pub async fn start_network(net: Netresources, spawner: &Spawner) -> (embassy_net::Stack<'static>, Control<'static>) {
-
+pub async fn start_network(
+    net: Netresources,
+    spawner: &Spawner,
+) -> (embassy_net::Stack<'static>, Control<'static>) {
     let pwr = Output::new(net.pwr, Level::Low);
     let cs = Output::new(net.cs, Level::High);
     let mut pio = Pio::new(net.pio, Irqs);
@@ -51,10 +51,9 @@ pub async fn start_network(net: Netresources, spawner: &Spawner) -> (embassy_net
     static STATE: StaticCell<cyw43::State> = StaticCell::new();
     let cyw_state = STATE.init(cyw43::State::new());
 
-
     let fw = unsafe { core::slice::from_raw_parts(0x10100000 as *const u8, 230321) };
     let clm = unsafe { core::slice::from_raw_parts(0x10140000 as *const u8, 4752) };
-    
+
     let (net_device, mut control, runner) = cyw43::new(cyw_state, pwr, spi, fw).await;
     unwrap!(spawner.spawn(cyw43_task(runner)));
 
@@ -68,7 +67,6 @@ pub async fn start_network(net: Netresources, spawner: &Spawner) -> (embassy_net
     let mut rng = RoscRng;
     let seed = rng.next_u64();
 
-
     static RESOURCES: StaticCell<StackResources<3>> = StaticCell::new();
     let network_config = embassy_net::Config::dhcpv4(Default::default());
     let (stack, runner) = embassy_net::new(
@@ -81,11 +79,14 @@ pub async fn start_network(net: Netresources, spawner: &Spawner) -> (embassy_net
     unwrap!(spawner.spawn(net_task(runner)));
 
     (stack, control)
-
 }
 
 #[embassy_executor::task]
-pub async fn transmitter(stack: embassy_net::Stack<'static>, mut control: Control<'static>, channel: &'static mpmc::Q4<LogMessage>) {
+pub async fn transmitter(
+    stack: embassy_net::Stack<'static>,
+    mut control: Control<'static>,
+    channel: &'static mpmc::Q4<LogMessage>,
+) {
     loop {
         match control
             .join(
@@ -111,15 +112,14 @@ pub async fn transmitter(stack: embassy_net::Stack<'static>, mut control: Contro
             info!("{}", address);
             break;
         }
-        Timer::after_millis(500*wait_time).await;
-        wait_time = (wait_time*2).min(8);
+        Timer::after_millis(500 * wait_time).await;
+        wait_time = (wait_time * 2).min(8);
         warn!("Failed to configure network, trying again...");
     }
 
     let mut rx_buffer = [0; 4096];
     let mut tx_buffer = [0; 4096];
     let _buf = [0; 4096];
-    
 
     let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
     // socket.set_timeout(Some(Duration::from_secs(15)));
@@ -137,10 +137,14 @@ pub async fn transmitter(stack: embassy_net::Stack<'static>, mut control: Contro
         // control.gpio_set(0, true).await;
 
         loop {
-            if let Some(msg) = channel.dequeue() {                
+            if let Some(msg) = channel.dequeue() {
                 let mut formatted = [0_u8; 32];
 
-                let Ok(n) = bincode::serde::encode_into_slice(msg, &mut formatted[2..], bincode::config::standard()) else {
+                let Ok(n) = bincode::serde::encode_into_slice(
+                    msg,
+                    &mut formatted[2..],
+                    bincode::config::standard(),
+                ) else {
                     warn!("Failed to encode msg");
                     continue;
                 };
@@ -148,10 +152,9 @@ pub async fn transmitter(stack: embassy_net::Stack<'static>, mut control: Contro
                 formatted[0] = size_bytes[0];
                 formatted[1] = size_bytes[1];
 
-                
                 // info!("sending {:?}", formatted[..n+2]);
-                match socket.write_all(&formatted[..n+2]).await {
-                    Ok(()) => {},
+                match socket.write_all(&formatted[..n + 2]).await {
+                    Ok(()) => {}
                     Err(e) => {
                         warn!("write error: {:?}", e);
                         break;

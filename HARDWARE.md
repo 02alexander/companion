@@ -10,7 +10,6 @@ NIDEC pinout, from left to right (when the connector is directed towards you and
 - encoder A
 - encoder B
 
-Start/Stop: High mean on, low means stop.
 Encoders: There's 25 holes for each encoder, giving us a precision of 360/(2*2*25) when using both encoders.
 Direction: Low means Counter clockwise rotation when axis is pointing towards you.
 PWM: always low means highest speed.
@@ -23,6 +22,8 @@ PWM
 Encoder A
 Forward Reverse
 
+
+
 Motor   Function    Släpring
 Brown               Orange
 Red                 Black
@@ -32,3 +33,6 @@ Green               White
 Blue                Green
 
 OBS: The `PWM` and `Start/Stop` pin might be reversed.
+
+Brown -> 3rd (PWM)
+Red -> forward/reverse

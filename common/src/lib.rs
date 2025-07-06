@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 pub const SAMPLE_TIME_MS: u32 = 10;
 mod ekf;
 mod model;
-pub mod dp;
 pub mod filter {
     pub use crate::ekf::*;
     pub use crate::model::*;

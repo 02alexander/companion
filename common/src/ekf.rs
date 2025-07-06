@@ -64,18 +64,18 @@ impl Model<3, 1> for NLModel {
         Mat::from_rows(&[
             [0.00001, 0.0, 0.0].into(),
             [0.0, 0.0, 0.0].into(),
-            [0.0, 0.0, 100000000.0*100000000.0].into(),
+            [0.0, 0.0, 100000000.0 * 100000000.0].into(),
         ])
     }
 
     fn f(&self, x: Mat<3, 1>, u: f32) -> Mat<3, 1> {
-        Mat::<3,1>::from_column_slice(&[
+        Mat::<3, 1>::from_column_slice(&[
             x[0] - self.dt * x[0] / WHEEL_TIME_CONSTANT,
             x[1] + self.dt * x[2],
-            x[2] + self.dt * (INERTIA_RATIO * x[0] / WHEEL_TIME_CONSTANT
-                + 9.81 * libm::sinf(x[1]) / RADIUS
-                - 0.2 * x[2]),
-        ]) + Mat::<3,1>::from_column_slice(&[
+            x[2] + self.dt
+                * (INERTIA_RATIO * x[0] / WHEEL_TIME_CONSTANT + 9.81 * libm::sinf(x[1]) / RADIUS
+                    - 0.2 * x[2]),
+        ]) + Mat::<3, 1>::from_column_slice(&[
             self.dt * WHEEL_STATIC_GAIN / WHEEL_TIME_CONSTANT,
             0.0,
             -self.dt * INERTIA_RATIO * WHEEL_STATIC_GAIN / WHEEL_TIME_CONSTANT,
@@ -105,10 +105,9 @@ impl Model<3, 1> for NLModel {
 
     fn R(&self) -> Mat<1, 1> {
         let std = 0.0001;
-        Mat::identity()*std*std
+        Mat::identity() * std * std
     }
 }
-
 
 #[allow(non_snake_case)]
 pub struct EKF<const NX: usize, const NY: usize, M> {
@@ -140,14 +139,14 @@ where
     }
 
     /// Performs measurement update a specified error. where error = y - yhat
-    pub fn measurment_update_from_error(&mut self, error: Mat<NY,1>) -> Option<()> {
+    pub fn measurment_update_from_error(&mut self, error: Mat<NY, 1>) -> Option<()> {
         let hprim = self.model.hprim(self.x);
         let s = self.model.R() + hprim * self.P * hprim.transpose();
         let inv_s = s.try_inverse()?;
 
         let k = self.P * hprim.transpose() * inv_s;
         self.P = self.P - self.P * hprim.transpose() * inv_s * hprim * self.P;
-        self.x = self.x + k * error;
+        self.x += k * error;
         Some(())
     }
 }

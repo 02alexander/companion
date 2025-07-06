@@ -1,131 +1,170 @@
 #![no_std]
 #![no_main]
-use {defmt_rtt as _, panic_probe as _};
 
-use common::LogMessage;
-use common::external::nalgebra::Matrix1x3;
-use common::filter::{pendulum_model, Model, NLModel};
-use common::{ControllerMessage, SAMPLE_TIME_MS, filter::EKF};
+use core::f32::consts::PI;
+
+use common::filter::{EKF, Mat, NLModel, RADIUS};
+use cyw43::Control;
 use defmt::*;
 use embassy_executor::Spawner;
-use embassy_rp::gpio::{Input, Level, Output, Pull};
+use embassy_rp::gpio::{Level, Output};
 use embassy_rp::i2c::I2c;
 use embassy_rp::pwm::Pwm;
-use embassy_time::{Duration, Instant, Ticker, Timer};
+use embassy_time::{Duration, Ticker, Timer};
+use firmware::Netresources;
 use firmware::encoder::{MagneticEncoder, RotaryEncoder};
 use firmware::motor::NidecMotor;
-use firmware::server::{GOT_CONNECTION, start_network, transmitter};
-use heapless::mpmc::Q4;
+use firmware::server::start_network;
 
 use {defmt_rtt as _, panic_probe as _};
-
-static LOG_MSG_QUEUE: Q4<LogMessage> = Q4::new();
 
 fn sub_angles(a: f32, b: f32) -> f32 {
     let mut diff_angle = a - b;
-    if diff_angle < -core::f32::consts::PI {
+    while diff_angle < -core::f32::consts::PI {
         diff_angle += 2.0 * core::f32::consts::PI;
-    } else if diff_angle > core::f32::consts::PI {
+    }
+    while diff_angle > core::f32::consts::PI {
         diff_angle -= 2.0 * core::f32::consts::PI;
     }
     diff_angle
 }
 
-/// Waits for the wheel to settle down and then reads the encoder.
-pub async fn get_reference<T: RotaryEncoder>(encoder: &mut T) -> Result<f32, T::Error> {
-    let mut last = encoder.rotation().await?;
-    'outer: loop {
-        for _ in 0..8 {
-            Timer::after_millis(40).await;
-            let cur = encoder.rotation().await?;
-            if sub_angles(cur, last).abs() > 0.01 {
-                last = cur;
-                continue 'outer;
-            }
-        }
-        break;
+#[derive(PartialEq, Clone, Copy)]
+enum BalancingState {
+    Swinging,
+    Chilling,
+    Balancing,
+}
+
+#[embassy_executor::task]
+async fn blinker(mut led: Control<'static>) {
+    loop {
+        led.gpio_set(0, true).await;
+        Timer::after_millis(500).await;
+        led.gpio_set(0, false).await;
+        Timer::after_millis(500).await;
     }
-    Ok(last)
 }
 
 #[embassy_executor::main]
 pub async fn entrypoint(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
-    let dir_pin = Output::new(p.PIN_8, Level::Low);
-    let motor_pwm = Pwm::new_output_b(p.PWM_SLICE3, p.PIN_7, Default::default());
-    let mut motor1 = NidecMotor::new(dir_pin, motor_pwm);
-    motor1.set_output(0.0);
-
-    let dir_pin = Output::new(p.PIN_14, Level::Low);
-    let motor_pwm = Pwm::new_output_b(p.PWM_SLICE7, p.PIN_15, Default::default());
-    let mut motor2 = NidecMotor::new(dir_pin, motor_pwm);
-    motor2.set_output(0.0);
-
-    let mut motor = motor1;
+    let dir_pin = Output::new(p.PIN_12, Level::Low);
+    let motor_pwm = Pwm::new_output_b(p.PWM_SLICE5, p.PIN_11, Default::default());
+    let mut motor = NidecMotor::new(dir_pin, motor_pwm);
+    motor.set_output(0.0);
 
     // Initialize network server.
-    // use firmware::assign::*;
-    // use firmware::split_resources;
-    // let r = split_resources!(p);
-    // let (stack, control) = start_network(r.net, &spawner).await;
-    // info!("network started!");
-    // unwrap!(spawner.spawn(transmitter(stack, control, &LOG_MSG_QUEUE)));
+    let r = Netresources {
+        pwr: p.PIN_23,
+        cs: p.PIN_25,
+        pio: p.PIO0,
+        dio: p.PIN_24,
+        spi_clk: p.PIN_29,
+        dma: p.DMA_CH0,
+    };
+    let (_stack, control) = start_network(r, &spawner).await;
+    unwrap!(spawner.spawn(blinker(control)));
 
-    let sda = p.PIN_16;
-    let scl = p.PIN_17;
+    let sda = p.PIN_0;
+    let scl = p.PIN_1;
     let i2c = I2c::new_async(p.I2C0, scl, sda, firmware::Irqs, Default::default());
-
     let mut encoder = MagneticEncoder { channel: i2c };
+    let bottom_angle = 0.7473148 + 0.035;
+    info!("bottom_angle = {}", bottom_angle);
+    let ref_angle = sub_angles(bottom_angle, PI);
 
-    info!("Fetching rotation...");
-    let bottom_angle = -1.8149946;
-    let ref_angle = sub_angles(bottom_angle, core::f32::consts::PI);
+    let mut ticker = Ticker::every(Duration::from_millis(10));
+    let mut ekf = EKF::from_model(NLModel { dt: 0.01 });
+    ekf.x[1] = PI;
 
-    // info!("Waiting for connection...");
-    // while let None = GOT_CONNECTION.dequeue() {
-    //     Timer::after_millis(500).await;
-    // }
-    // info!("Got connection!");
-    // Timer::after_millis(500).await;
+    let mut prev_state = BalancingState::Swinging;
+    let mut state = BalancingState::Swinging;
 
-    // let ts = Duration::from_millis(500 as u64);
-    let ts = Duration::from_millis(SAMPLE_TIME_MS as u64);
-    let mut ticker = Ticker::every(ts);
+    info!("Entering loop...");
 
-    let mut ekf = EKF::from_model(NLModel {dt: SAMPLE_TIME_MS as f32 *1e-3});
-
-    info!("Entering control loop!");
     loop {
         ticker.next().await;
 
-        if let Ok(raw_angle) = encoder.rotation().await {
-            let angle = sub_angles(raw_angle, ref_angle);
-            let pred = ekf.x[1];            
-            ekf.measurment_update_from_error([sub_angles(angle, pred)].into());
-        } else {
-            warn!("Failed to read from encoder");
-        }
-        let y = ekf.model.h(ekf.x);
-
-        let f: Matrix1x3<f32> = [[-0.00582551],[-8.00347],[-0.967164]].into();
-        let u = (-f * ekf.x)[0];
-        motor.set_output(u.clamp(-1.0, 1.0));
-        info!("u = {}", u);
-
         ekf.time_update(motor.output);
 
+        if let Ok(raw_angle) = encoder.rotation().await {
+            let angle = sub_angles(raw_angle, ref_angle);
+            let pred = ekf.x[1];
+            ekf.measurment_update_from_error([sub_angles(angle, pred)].into());
+        }
 
-        let msg = ControllerMessage {
-            time_ms: Instant::now().as_millis(),
-            wheel_velocity: y[0],
-            control: motor.output,
-            pend_angle: y[0],
-            pend_velocity: y[0],
-            sensor_pend_angle: 0.0,
-            sensor_wheel_velocity: 0.0,
+        while ekf.x[1] < -PI {
+            ekf.x[1] += 2.0 * PI
+        }
+        while ekf.x[1] > PI {
+            ekf.x[1] -= 2.0 * PI
+        }
+
+        let f: Mat<1, 3> = [[-0.00582551], [-8.00347], [-0.967164]].into();
+
+        state = match state {
+            BalancingState::Swinging => {
+                let top_energy = RADIUS * 9.81;
+                let cur_energy = RADIUS * 9.81 * libm::cosf(ekf.x[1])
+                    + RADIUS * ekf.x[2] * RADIUS * ekf.x[2] / 2.0;
+
+                if ekf.x[0].abs() > 330.0 * 0.2 {
+                    motor.set_output(ekf.x[2].signum() * 0.15);
+                } else if cur_energy < top_energy {
+                    motor.set_output(-ekf.x[2].signum() * 0.2);
+                } else if cur_energy > top_energy {
+                    motor.set_output(ekf.x[2].signum() * 0.2);
+                } else {
+                    motor.set_output(ekf.x[0] / 330.0);
+                }
+
+                let u = (-f * ekf.x)[0];
+                if sub_angles(ekf.x[1], 0.0).abs() < 0.2 && u.abs() < 3.0 {
+                    BalancingState::Balancing
+                } else {
+                    BalancingState::Swinging
+                }
+            }
+            BalancingState::Chilling => {
+                let top_energy = RADIUS * 9.81;
+                let bot_energy = -RADIUS * 9.81;
+                let cur_energy = RADIUS * 9.81 * libm::cosf(ekf.x[1])
+                    + RADIUS * ekf.x[2] * RADIUS * ekf.x[2] / 2.0;
+
+                let boundary = 0.7;
+                if cur_energy > boundary * top_energy + (1.0 - boundary) * bot_energy {
+                    motor.set_output(ekf.x[2].signum() * 0.3);
+                    BalancingState::Chilling
+                } else {
+                    BalancingState::Swinging
+                }
+            }
+            BalancingState::Balancing => {
+                let f: Mat<1, 3> = [[-0.00582551], [-8.00347], [-0.967164]].into();
+                let u = (-f * ekf.x)[0];
+                info!(
+                    "{} {} {}",
+                    f[0] * ekf.x[0],
+                    f[1] * ekf.x[1],
+                    f[2] * ekf.x[2]
+                );
+                motor.set_output(u.clamp(-1.0, 1.0));
+                if sub_angles(ekf.x[1], 0.0).abs() > 0.25 {
+                    BalancingState::Chilling
+                } else {
+                    BalancingState::Balancing
+                }
+            }
         };
-
-        let _ = LOG_MSG_QUEUE.enqueue(LogMessage::Controller(msg));
+        if prev_state != state {
+            match state {
+                BalancingState::Swinging => info!("Swinging"),
+                BalancingState::Chilling => info!("Chilling"),
+                BalancingState::Balancing => info!("Balancing"),
+            }
+        }
+        prev_state = state;
     }
 }

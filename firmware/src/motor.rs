@@ -1,5 +1,7 @@
-
-use embassy_rp::{gpio::Output, pwm::{self, Pwm, SetDutyCycle}};
+use embassy_rp::{
+    gpio::Output,
+    pwm::{self, Pwm, SetDutyCycle},
+};
 
 pub struct NidecMotor {
     pwm: Pwm<'static>,
@@ -7,13 +9,14 @@ pub struct NidecMotor {
     pub output: f32,
 }
 
-const TOP: u16  = 100;
+const TOP: u16 = 100;
 
 impl NidecMotor {
     /// `output` should be a value in the interval [-1.0, 1.0]
     pub fn set_output(&mut self, output: f32) {
         self.output = output;
-        let mag = (1.0-output.abs().clamp(0.0, 1.0))*TOP as f32;
+        // let mag = (1.0-output.abs().clamp(0.0, 1.0))*TOP as f32;
+        let mag = output.abs().clamp(0.0, 1.0) * TOP as f32;
 
         if output < 0.0 {
             self.dir_pin.set_high();
@@ -23,10 +26,7 @@ impl NidecMotor {
         self.pwm.set_duty_cycle(mag as u16).unwrap();
     }
 
-    pub fn new(
-        dir_pin: Output<'static>,
-        mut pwm: Pwm<'static>,
-    ) -> Self {
+    pub fn new(dir_pin: Output<'static>, mut pwm: Pwm<'static>) -> Self {
         // unwrap!(spawner.spawn(tracker(encoder_pin, counter.clone())));
 
         let mut pwm_config = pwm::Config::default();
