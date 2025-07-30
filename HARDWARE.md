@@ -3,8 +3,8 @@ NIDEC 24H brushless motor
 NIDEC pinout, from left to right (when the connector is directed towards you and the rotor is pointing up):
 - Power positive
 - Power negative
-- Start/stop
 - PWM
+- Start/stop
 - forward/reverse
 - encoder power supply (5V)
 - encoder A
@@ -32,7 +32,6 @@ Yellow              Yellow
 Green               White
 Blue                Green
 
-OBS: The `PWM` and `Start/Stop` pin might be reversed.
 
 Brown -> 3rd (PWM)
 Red -> forward/reverse
